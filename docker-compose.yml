@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # Model Training Service
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mlops-training
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./outputs:/app/outputs
+    environment:
+      - ENVIRONMENT=production
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - DEBUG=False
+    depends_on:
+      - mlflow
+    networks:
+      - mlops-network
+
+  # MLflow Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    container_name: mlops-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000
+    networks:
+      - mlops-network
+
+networks:
+  mlops-network:
+    driver: bridge
+
+volumes:
+  mlflow-data:
