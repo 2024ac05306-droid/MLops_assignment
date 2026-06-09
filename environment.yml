@@ -1,0 +1,20 @@
+name: mlops-training
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - pip:
+    - torch==2.0.0
+    - torchvision==0.15.0
+    - tensorflow==2.13.0
+    - jupyter==1.0.0
+    - tensorboard==2.13.0
+    - mlflow==2.7.0
+    - pydantic==2.0.0
+    - python-dotenv==1.0.0
