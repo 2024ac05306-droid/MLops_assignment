@@ -1,36 +1,25 @@
-# Use official Python runtime as base image
-FROM python:3.9-slim
+# For more information, please refer to https://aka.ms/vscode-docker-python
+FROM python:3-slim
 
-# Set working directory
-WORKDIR /app
+EXPOSE 8000
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+# Keeps Python from generating .pyc files in the container
+ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+# Turns off buffering for easier container logging
+ENV PYTHONUNBUFFERED=1
 
-# Copy requirements
+# Install pip requirements
 COPY requirements.txt .
+RUN python -m pip install -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+WORKDIR /app
+COPY . /app
 
-# Copy project files
-COPY . .
+# Creates a non-root user with an explicit UID and adds permission to access the /app folder
+# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
+RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
 
-# Create directories for data and outputs
-RUN mkdir -p data/raw data/processed models outputs logs
-
-# Expose ports for TensorBoard and MLflow
-EXPOSE 6006 5000
-
-# Default command: run training script
-CMD ["python", "src/train.py"]
+# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.train:app"]
