@@ -1,0 +1,7 @@
+EDA Observations
+================
+
+1. Class distribution is relatively balanced.
+2. Cholesterol contains several outliers.
+3. Chest pain type shows correlation with target.
+4. Most features are approximately normally distributed.
