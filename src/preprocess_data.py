@@ -1,100 +1,125 @@
 import os
-from tkinter.font import names
-
-import numpy as np
-import pandas as pd
+from pathlib import Path
 
 import joblib
-
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+import pandas as pd
+from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 
+DATA_URL = "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
+PROCESSED_DATA_PATH = "data/processed/heart_disease_cleaned.csv"
+PREPROCESSOR_PATH = "models/preprocessor.pkl"
+TARGET_COLUMN = "target"
 
-#UCI Heart Disease dataset URL (Cleveland dataset)
 
-url = "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
-
-class preprocess_data:
+class PreprocessData:
     def __init__(self):
-        self.imputer = SimpleImputer(strategy='mean')
-        self.scaler = StandardScaler()
-        self.isfitted = False
-        
-    def load_data(self, url=str):
-        column_names = [
-        "age","sex","cp","trestbps","chol","fbs","restecg","thalach",
-        "exang","oldpeak","slope","ca","thal","target"]
-        df = pd.read_csv(url, header = None, names=column_names, na_values='?')
-        
-        df = df.apply(pd.to_numeric, errors='coerce')
+        self.column_names = [
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "chol",
+            "fbs",
+            "restecg",
+            "thalach",
+            "exang",
+            "oldpeak",
+            "slope",
+            "ca",
+            "thal",
+            "target",
+        ]
+        self.numeric_columns = ["age", "trestbps", "chol", "thalach", "oldpeak"]
+        self.categorical_columns = [
+            "sex",
+            "cp",
+            "fbs",
+            "restecg",
+            "exang",
+            "slope",
+            "ca",
+            "thal",
+        ]
+        self.preprocessor = self.build_preprocessor()
 
-        print (df.head())
-        print (df.info())
-        #hadling missing values
-        df = self.handle_missing_values(df)
-        X = df.drop("target", axis=1)
-        X= self.handle_encoding(X)
-        return df, X
-    def handle_missing_values(self, df):
-        print("Before imputation:")
-        print(df.isnull().sum())
-        df = pd.DataFrame(
-            self.imputer.fit_transform(df),
-            columns=df.columns)
-            
-        print("After imputation:")
-        print(df.isnull().sum())
-        return df
-    def handle_encoding(self, df):
-        df = pd.get_dummies(df, columns=['sex', 'cp', 'fbs', 'restecg', 'exang', 'slope', 'ca', 'thal'])
-        return df
+    def build_preprocessor(self) -> ColumnTransformer:
+        numeric_pipeline = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="mean")),
+                ("scaler", StandardScaler()),
+            ]
+        )
 
-    def fit_transform(self, X):
-        X = pd.DataFrame(self.imputer.fit_transform(X), columns=X.columns)
-        X = pd.DataFrame(self.scaler.fit_transform(X), columns=X.columns)
-        self.isfitted = True
-        return X
+        categorical_pipeline = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="most_frequent")),
+                ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+            ]
+        )
 
-    def transform(self, X):
-        if not self.isfitted:
-            raise ValueError("The imputer and scaler must be fitted before calling transform.")
-        X = pd.DataFrame(self.imputer.transform(X), columns=X.columns)
-        X = pd.DataFrame(self.scaler.transform(X), columns=X.columns)
-        return X
-    
-    #save the clean data to a file
-    def save(self, path = "models/preprocessor.pkl"):
+        return ColumnTransformer(
+            transformers=[
+                ("numeric", numeric_pipeline, self.numeric_columns),
+                ("categorical", categorical_pipeline, self.categorical_columns),
+            ]
+        )
+
+    def load_data(self, data_path: str = DATA_URL) -> pd.DataFrame:
+        data = pd.read_csv(
+            data_path,
+            header=None,
+            names=self.column_names,
+            na_values="?",
+        )
+        data = data.apply(pd.to_numeric, errors="coerce")
+        data[TARGET_COLUMN] = data[TARGET_COLUMN].apply(lambda value: 1 if value > 0 else 0)
+        return data
+
+    def fit_transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        x = data.drop(columns=[TARGET_COLUMN])
+        y = data[TARGET_COLUMN]
+
+        x_processed = self.preprocessor.fit_transform(x)
+        feature_names = self.preprocessor.get_feature_names_out()
+
+        processed_data = pd.DataFrame(x_processed, columns=feature_names)
+        processed_data[TARGET_COLUMN] = y.values
+
+        return processed_data
+
+    def transform(self, data: pd.DataFrame) -> pd.DataFrame:
+        x_processed = self.preprocessor.transform(data)
+        feature_names = self.preprocessor.get_feature_names_out()
+        return pd.DataFrame(x_processed, columns=feature_names)
+
+    def save_processed_data(self, data: pd.DataFrame, output_path: str = PROCESSED_DATA_PATH) -> None:
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        data.to_csv(output_file, index=False)
+        print(f"Cleaned dataset saved to: {output_file}")
+
+    def save_preprocessor(self, path: str = PREPROCESSOR_PATH) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        joblib.dump(self, path)
-        print(f"Preprocessor saved to {path}")
+        joblib.dump(self.preprocessor, path)
+        print(f"Preprocessor saved to: {path}")
 
-    def load(self, path = "models/preprocessor.pkl"):
-        return joblib.load(path)
+
+def main():
+    processor = PreprocessData()
+    raw_data = processor.load_data()
+    processed_data = processor.fit_transform(raw_data)
+
+    processor.save_processed_data(processed_data)
+    processor.save_preprocessor()
+
+    print("Preprocessing completed.")
+    print(f"Rows: {len(processed_data)}")
+    print(f"Columns: {len(processed_data.columns)}")
 
 
 if __name__ == "__main__":
-    preprocessor = preprocess_data()
-    #load dataset
-    df, X = preprocessor.load_data(url)
-
-    #convert to binary classification
-    df['target'] = df['target'].apply(lambda x: 1 if x > 0 else 0)
-
-    #Split features and Target
-    X= df.drop("target", axis=1)
-    y= df['target']
-
-    # Preprocess features 
-    X_processed = preprocessor.fit_transform(X) 
-    # Save cleaned dataset 
-    processed_df = X_processed.copy() 
-    processed_df["target"] = y.values 
-    os.makedirs("data/processed", exist_ok=True) 
-    processed_df.to_csv( "data/processed/heart_disease_cleaned.csv", index=False ) 
-    print("\nCleaned dataset saved:") 
-    print("data/processed/heart_disease_cleaned.csv") 
-    # Save preprocessor 
-    preprocessor.save() 
-    print("Preprocessing completed and preprocessor saved.")
+    main()

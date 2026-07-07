@@ -22,8 +22,8 @@ def resolve_path(path: str) -> Path:
 
 def configure_mlflow(mlflow_dir: str, experiment_name: str) -> str:
     mlflow_root = resolve_path(mlflow_dir)
-    db_path = mlflow_root / "mlflow.db"
-    artifact_root = mlflow_root / "artifacts"
+    db_path = mlflow_root / "ML_Inference_mlflow.db"
+    artifact_root = mlflow_root / "ML_Inference_artifacts"
 
     mlflow_root.mkdir(parents=True, exist_ok=True)
     artifact_root.mkdir(parents=True, exist_ok=True)
