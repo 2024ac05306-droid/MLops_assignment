@@ -46,6 +46,33 @@ jobs:
         run: |
           python src/model_train.py 2>&1 | tee logs/training.log
 
+      - name: Build Docker image
+        run: |
+          docker build -t mlops-model-api:latest . 2>&1 | tee logs/docker-build.log
+
+      - name: Run Docker container
+        run: |
+          docker run -d --name mlops-model-api -p 8000:8000 mlops-model-api:latest
+          sleep 15
+          docker logs mlops-model-api > logs/docker-container.log
+
+      - name: Test API health endpoint
+        run: |
+          curl --fail http://localhost:8000/health | tee logs/api-health.log
+
+      - name: Test API predict endpoint
+        run: |
+          curl --fail -X POST "http://localhost:8000/predict" \
+            -H "Content-Type: application/json" \
+            --data @samples/predict_sample.json | tee logs/api-predict.log
+
+      - name: Stop Docker container
+        if: always()
+        run: |
+          docker logs mlops-model-api >> logs/docker-container.log 2>&1 || true
+          docker stop mlops-model-api || true
+          docker rm mlops-model-api || true
+
       - name: Upload workflow artifacts
         if: always()
         uses: actions/upload-artifact@v4
