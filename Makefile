@@ -1,4 +1,4 @@
-.PHONY: help install lint test preprocess train serve docker-build docker-run docker-compose-up clean
+.PHONY: help install lint test preprocess train serve docker-build docker-run k8s-deploy k8s-status k8s-delete docker-compose-up clean
 
 help:
 	@echo "MLOps Assignment - Available Commands"
@@ -11,6 +11,9 @@ help:
 	@echo "make serve            - Run FastAPI model serving API locally"
 	@echo "make docker-build     - Build Docker image"
 	@echo "make docker-run       - Run training in Docker"
+	@echo "make k8s-deploy       - Deploy API to local Kubernetes"
+	@echo "make k8s-status       - Show Kubernetes deployment status"
+	@echo "make k8s-delete       - Delete Kubernetes deployment"
 	@echo "make docker-compose-up - Start full stack with docker-compose"
 	@echo "make clean            - Clean up generated files"
 	@echo "make logs             - View training logs"
@@ -40,6 +43,15 @@ docker-run:
 	docker run --rm -p 8000:8000 \
 	           -v $$(pwd)/models:/app/models \
 	           mlops-model-api:latest
+
+k8s-deploy:
+	kubectl apply -k k8s
+
+k8s-status:
+	kubectl get all -n mlops-assignment
+
+k8s-delete:
+	kubectl delete -k k8s
 
 docker-compose-up:
 	docker-compose up --build
