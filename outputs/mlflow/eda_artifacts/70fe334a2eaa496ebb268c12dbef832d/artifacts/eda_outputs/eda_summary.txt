@@ -1,0 +1,7 @@
+EDA Observations
+================
+
+1. Review target_distribution.png for class balance.
+2. Review boxplots.png to identify possible outliers.
+3. Review correlation_heatmap.png for feature relationships.
+4. Review target_correlation.png for features related to the target.

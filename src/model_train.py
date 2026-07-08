@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import joblib
+import matplotlib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
@@ -16,13 +17,20 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_validate, train_test_split
+from sklearn.pipeline import Pipeline
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 DATA_PATH = "data/processed/heart_disease_cleaned.csv"
 TARGET_COLUMN = "target"
 MODEL_DIR = "models"
 BEST_MODEL_PATH = "models/best_model.pkl"
+PREPROCESSOR_PATH = "models/preprocessor.pkl"
+BEST_PIPELINE_PATH = "models/best_pipeline.pkl"
 REPORT_PATH = "outputs/reports/model_selection_report.txt"
+METRICS_CHART_PATH = "outputs/reports/model_metrics_comparison.png"
 
 MLFLOW_DB_PATH = "outputs/mlflow/training_mlflow.db"
 MLFLOW_ARTIFACT_DIR = "outputs/mlflow/training_artifacts"
@@ -70,41 +78,6 @@ def load_dataset():
     return x, y
 
 
-def get_models_and_params():
-    models = {
-        "LogisticRegression": (
-            LogisticRegression(max_iter=1000, random_state=RANDOM_STATE),
-            {
-                "C": [0.01, 0.1, 1.0, 10.0],
-                "solver": ["liblinear"],
-            },
-        ),
-        "RandomForest": (
-            RandomForestClassifier(random_state=RANDOM_STATE),
-            {
-                "n_estimators": [100, 200],
-                "max_depth": [None, 5, 10],
-                "min_samples_split": [2, 5],
-            },
-        ),
-    }
-
-    return models
-
-
-def evaluate_model(model, x_test, y_test):
-    y_pred = model.predict(x_test)
-    y_prob = model.predict_proba(x_test)[:, 1]
-
-    return {
-        "accuracy": accuracy_score(y_test, y_pred),
-        "precision": precision_score(y_test, y_pred, zero_division=0),
-        "recall": recall_score(y_test, y_pred, zero_division=0),
-        "roc_auc": roc_auc_score(y_test, y_prob),
-        "confusion_matrix": confusion_matrix(y_test, y_pred),
-    }
-
-
 def save_report(results, best_model_name, best_params, best_auc):
     report_file = Path(REPORT_PATH)
     report_file.parent.mkdir(parents=True, exist_ok=True)
@@ -166,17 +139,63 @@ def save_report(results, best_model_name, best_params, best_auc):
     return report_file
 
 
-def load_dataset():
-    df = pd.read_csv(DATA_PATH)
+def save_metrics_comparison_chart(results):
+    chart_file = Path(METRICS_CHART_PATH)
+    chart_file.parent.mkdir(parents=True, exist_ok=True)
 
-    if TARGET_COLUMN not in df.columns:
-        raise ValueError(f"Target column '{TARGET_COLUMN}' not found in {DATA_PATH}")
+    chart_data = pd.DataFrame(
+        [
+            {
+                "model_name": result["model_name"],
+                "Accuracy": result["accuracy"],
+                "Precision": result["precision"],
+                "Recall": result["recall"],
+                "ROC-AUC": result["roc_auc"],
+            }
+            for result in results
+        ]
+    ).set_index("model_name")
+    
+    ax = chart_data.plot(kind="bar", figsize=(10, 6), width=0.75)
+    ax.set_title("Test Metrics Comparison")
+    ax.set_xlabel("Model")
+    ax.set_ylabel("Score")
+    ax.set_ylim(0, 1)
+    ax.legend(title="Metric", loc="lower right")
+    ax.grid(axis="y", linestyle="--", alpha=0.35)
 
-    x = df.drop(TARGET_COLUMN, axis=1)
-    y = df[TARGET_COLUMN]
+    for container in ax.containers:
+        ax.bar_label(container, fmt="%.3f", padding=3, fontsize=8)
 
-    return x, y
+    plt.xticks(rotation=0)
+    plt.tight_layout()
+    plt.savefig(chart_file, dpi=150)
+    plt.close()
 
+    return chart_file
+
+def save_reusable_pipeline(best_model):
+    preprocessor_file = Path(PREPROCESSOR_PATH)
+
+    if not preprocessor_file.exists():
+        raise FileNotFoundError(
+            f"Preprocessor file not found: {preprocessor_file}. "
+            "Run preprocess_data.py before model_train.py."
+        )
+
+    preprocessor = joblib.load(preprocessor_file)
+    full_pipeline = Pipeline(
+        steps=[
+            ("preprocessor", preprocessor),
+            ("model", best_model),
+        ]
+    )
+
+    pipeline_file = Path(BEST_PIPELINE_PATH)
+    pipeline_file.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(full_pipeline, pipeline_file)
+
+    return pipeline_file, full_pipeline
 
 def get_models_and_params():
     models = {
@@ -211,68 +230,6 @@ def evaluate_model(model, x_test, y_test):
         "roc_auc": roc_auc_score(y_test, y_prob),
         "confusion_matrix": confusion_matrix(y_test, y_pred),
     }
-
-
-def save_report(results, best_model_name, best_params, best_auc):
-    report_file = Path(REPORT_PATH)
-    report_file.parent.mkdir(parents=True, exist_ok=True)
-
-    lines = [
-        "Model Selection and Tuning Report",
-        "=================================",
-        "",
-        "Dataset:",
-        f"- Input data: {DATA_PATH}",
-        f"- Target column: {TARGET_COLUMN}",
-        "",
-        "Models trained:",
-        "- Logistic Regression",
-        "- Random Forest",
-        "",
-        "Tuning process:",
-        "- GridSearchCV was used for hyperparameter tuning.",
-        "- Stratified 5-fold cross-validation was used.",
-        "- ROC-AUC was used as the primary model selection metric.",
-        "",
-        "Evaluation metrics:",
-        "- Accuracy",
-        "- Precision",
-        "- Recall",
-        "- ROC-AUC",
-        "",
-        "Results:",
-    ]
-
-    for result in results:
-        lines.extend(
-            [
-                "",
-                f"Model: {result['model_name']}",
-                f"Best parameters: {result['best_params']}",
-                f"CV accuracy: {result['cv_accuracy']:.4f}",
-                f"CV precision: {result['cv_precision']:.4f}",
-                f"CV recall: {result['cv_recall']:.4f}",
-                f"CV ROC-AUC: {result['cv_roc_auc']:.4f}",
-                f"Test accuracy: {result['accuracy']:.4f}",
-                f"Test precision: {result['precision']:.4f}",
-                f"Test recall: {result['recall']:.4f}",
-                f"Test ROC-AUC: {result['roc_auc']:.4f}",
-                f"Confusion matrix: {result['confusion_matrix'].tolist()}",
-            ]
-        )
-
-    lines.extend(
-        [
-            "",
-            f"Selected best model: {best_model_name}",
-            f"Selected best parameters: {best_params}",
-            f"Best test ROC-AUC: {best_auc:.4f}",
-        ]
-    )
-
-    report_file.write_text("\n".join(lines), encoding="utf-8")
-    return report_file
-
 
 def main():
     configure_mlflow()
@@ -369,6 +326,7 @@ def main():
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     joblib.dump(best_model, BEST_MODEL_PATH)
+    pipeline_path, full_pipeline = save_reusable_pipeline(best_model)
 
     report_path = save_report(
         results=all_results,
@@ -376,20 +334,26 @@ def main():
         best_params=best_params,
         best_auc=best_auc,
     )
+    metrics_chart_path = save_metrics_comparison_chart(all_results)
 
     with mlflow.start_run(run_name="BestModelSummary"):
         mlflow.log_param("selected_model", best_model_name)
         mlflow.log_param("selected_model_params", best_params)
         mlflow.log_metric("best_test_roc_auc", best_auc)
         mlflow.sklearn.log_model(best_model, name="best_heart_model")
+        mlflow.sklearn.log_model(full_pipeline, name="best_heart_pipeline")
         mlflow.log_artifact(BEST_MODEL_PATH, artifact_path="saved_model")
+        mlflow.log_artifact(str(pipeline_path), artifact_path="saved_model")
         mlflow.log_artifact(str(report_path), artifact_path="reports")
+        mlflow.log_artifact(str(metrics_chart_path), artifact_path="reports")
 
         print("\nBest model saved successfully")
         print(f"Best model      : {best_model_name}")
         print(f"Best ROC-AUC    : {best_auc:.4f}")
         print(f"Model path      : {BEST_MODEL_PATH}")
+        print(f"Pipeline path   : {pipeline_path}")
         print(f"Report path     : {report_path}")
+        print(f"Metrics chart   : {metrics_chart_path}")
         print(f"MLflow run ID   : {mlflow.active_run().info.run_id}")
 
 
