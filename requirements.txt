@@ -6,6 +6,7 @@ matplotlib==3.10.3
 mlflow==3.1.0
 
 fastapi==0.116.1
+prometheus-client==0.22.1
 uvicorn[standard]==0.35.0
 pydantic==2.11.7
 pydantic-settings==2.10.1

@@ -1,11 +1,15 @@
+import json
 import logging
 import os
+import time
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable
 
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 from pydantic import BaseModel, Field
 
 
@@ -27,14 +31,88 @@ FEATURE_COLUMNS = [
     "thal",
 ]
 
+LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+api_logger = logging.getLogger("api_requests")
+api_logger.setLevel(logging.INFO)
+api_logger.propagate = False
+api_logger.handlers.clear()
+
+request_log_formatter = logging.Formatter("%(message)s")
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(request_log_formatter)
+file_handler = logging.FileHandler(LOG_DIR / "api_requests.log")
+file_handler.setFormatter(request_log_formatter)
+api_logger.addHandler(console_handler)
+api_logger.addHandler(file_handler)
+
+REQUEST_COUNT = Counter(
+    "api_requests_total",
+    "Total number of API requests",
+    ["method", "endpoint", "status_code"],
+)
+REQUEST_LATENCY = Histogram(
+    "api_request_duration_seconds",
+    "API request latency in seconds",
+    ["method", "endpoint"],
+)
+REQUESTS_IN_PROGRESS = Gauge(
+    "api_requests_in_progress",
+    "Number of API requests currently being processed",
+)
+PREDICTION_COUNT = Counter(
+    "api_predictions_total",
+    "Total number of prediction requests completed successfully",
+)
 
 app = FastAPI(
     title="Heart Disease Model Serving API",
     version="1.0.0",
     description="Serves the trained heart disease classification pipeline.",
 )
+
+
+@app.middleware("http")
+async def log_requests_and_collect_metrics(
+    request: Request, call_next: Callable
+) -> Response:
+    start_time = time.perf_counter()
+    method = request.method
+    endpoint = request.url.path
+    status_code = 500
+
+    REQUESTS_IN_PROGRESS.inc()
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        duration_seconds = time.perf_counter() - start_time
+        REQUESTS_IN_PROGRESS.dec()
+        REQUEST_COUNT.labels(
+            method=method,
+            endpoint=endpoint,
+            status_code=str(status_code),
+        ).inc()
+        REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(duration_seconds)
+
+        api_logger.info(
+            json.dumps(
+                {
+                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "method": method,
+                    "path": endpoint,
+                    "status_code": status_code,
+                    "duration_ms": round(duration_seconds * 1000, 2),
+                    "client_ip": request.client.host if request.client else None,
+                    "user_agent": request.headers.get("user-agent"),
+                }
+            )
+        )
 
 
 class HeartDiseaseInput(BaseModel):
@@ -77,6 +155,11 @@ def health_check():
     return {"status": "ok", "model_path": MODEL_PATH}
 
 
+@app.get("/metrics")
+def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.post("/predict", response_model=PredictionResponse)
 def predict(payload: HeartDiseaseInput):
     try:
@@ -97,6 +180,7 @@ def predict(payload: HeartDiseaseInput):
             confidence = round(float(max(probability_values)), 6)
 
         logger.info("Prediction=%s confidence=%s", prediction, confidence)
+        PREDICTION_COUNT.inc()
         return {
             "prediction": prediction,
             "confidence": confidence,
