@@ -1,37 +1,49 @@
-# For more information, please refer to https://aka.ms/vscode-docker-python
-FROM python:3.11-slim
+# Multi-stage build: builder stage
+FROM python:3.11-slim as builder
 
-EXPOSE 8000
-
-# Keeps Python from generating .pyc files in the container
-ENV PYTHONDONTWRITEBYTECODE=1
-
-# Turns off buffering for easier container logging
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
     python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies to a virtual environment
+COPY requirements.txt .
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Runtime stage
+FROM python:3.11-slim
+
+EXPOSE 8000
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pip requirements
-COPY requirements.txt .
-#RUN python -m pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user
+RUN adduser -u 5678 --disabled-password --gecos "" appuser
 
 WORKDIR /app
-COPY . /app
+COPY --chown=appuser:appuser . /app
 
-# Creates a non-root user with an explicit UID and adds permission to access the /app folder
-# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser
 
-# Serve the trained model API.
+# Serve the trained model API
 CMD ["uvicorn", "src.serve_api:app", "--host", "0.0.0.0", "--port", "8000"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
