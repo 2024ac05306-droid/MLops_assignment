@@ -1,6 +1,6 @@
 services:
   mlopsassignment:
-    image: mlopsassignment
+    image: hirdalappa/hirdalappa_mlops:latest
     build:
       context: .
       dockerfile: ./Dockerfile
