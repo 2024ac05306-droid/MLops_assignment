@@ -1,3 +1,6 @@
+# Project Structure
+
+```
 MLops_assignment/
 ├── .github/
 │   └── workflows/
@@ -58,3 +61,4 @@ MLops_assignment/
 ├── SERVING.md
 ├── SETUP_GUIDE.md
 └── DEPLOYMENT.md
+```
