@@ -17,8 +17,8 @@ spec:
     spec:
       containers:
         - name: heart-disease-api
-          image: mlops-model-api:latest
-          imagePullPolicy: Never
+          image: hirdalappa/hirdalappa_mlops:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
