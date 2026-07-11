@@ -220,12 +220,3 @@ Production recommendations:
 - Security: ensure images are scanned, run containers as non-root, and store secrets securely
 - Backups: ensure model artifacts and important stateful data are versioned and backed up
 
----
-
-If you'd like, I can next:
-
-- Add example Kubernetes manifests under `k8s/` and commit them
-- Add a sample GitHub Actions workflow to build, test, and push the Docker image
-- Produce a Dockerfile tuned to the current project layout (I can inspect the repo and tailor it)
-
-Tell me which option to do next and I'll add the files and commit them for you.
