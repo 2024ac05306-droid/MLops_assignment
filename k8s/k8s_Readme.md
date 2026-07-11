@@ -25,13 +25,7 @@ These manifests are tuned for the project's Dockerfile which runs the FastAPI ap
      -n heart-disease-api
    ```
 
-3. **(Optional) Create model PVC and copy model files, or mount a hostPath:**
-   ```bash
-   kubectl apply -f k8s/model-pvc.yaml
-   ```
-   Then update deployment to mount the PVC (see commented volumeMounts in deployment.yaml)
-
-4. **Apply manifests:**
+3. **Apply manifests:**
    ```bash
    kubectl apply -f k8s/
    ```
@@ -46,8 +40,3 @@ These manifests are tuned for the project's Dockerfile which runs the FastAPI ap
 
 - **startupProbe** gives the container a long window (failureThreshold × periodSeconds) while the model loads; adjust these if your model loads faster/slower.
 - If you implement a `/ready` endpoint that returns success only after the model is loaded, change the readinessProbe to use `/ready` — this prevents serving traffic before the model is available.
-
-## Security & Permissions
-
-- The Dockerfile creates a non-root user with UID 5678; the Deployment sets `runAsUser`/`runAsGroup` to 5678 and `fsGroup` to 5678 so mounted model files are readable.
-- If your cluster enforces different Pod Security Standards, adjust the `securityContext` accordingly.
