@@ -1,29 +1,53 @@
-Kubernetes notes for this repository
-These manifests are tuned for the project's Dockerfile which runs the FastAPI app on port 8000 and exposes a /health endpoint.
+# Kubernetes Notes for This Repository
 
-Before applying:
+These manifests are tuned for the project's Dockerfile which runs the FastAPI app on port 8000 and exposes a `/health` endpoint.
 
-Replace /heart-disease-api:1.0.0 in k8s/deployment.yaml with your image reference.
-Replace example.com in k8s/ingress.yaml with your host (or remove the Ingress).
-Create any needed secrets (docker registry, model credentials).
-Common steps:
+## Before Applying
 
-Create namespace: kubectl apply -f k8s/namespace.yaml
+- Replace `heart-disease-api:1.0.0` in `k8s/deployment.yaml` with your image reference.
+- Replace `example.com` in `k8s/ingress.yaml` with your host (or remove the Ingress).
+- Create any needed secrets (docker registry, model credentials).
 
-Create docker registry secret (if needed): kubectl create secret docker-registry regcred
---docker-server= --docker-username= --docker-password= --docker-email= -n heart-disease-api
+## Common Steps
 
-(Optional) Create model PVC and copy model files, or mount a hostPath: kubectl apply -f k8s/model-pvc.yaml
+1. **Create namespace:**
+   ```bash
+   kubectl apply -f k8s/namespace.yaml
+   ```
 
-Then update deployment to mount the PVC (see commented volumeMounts in deployment.yaml)
-Apply manifests: kubectl apply -f k8s/
+2. **Create docker registry secret (if needed):**
+   ```bash
+   kubectl create secret docker-registry regcred \
+     --docker-server=<registry-server> \
+     --docker-username=<username> \
+     --docker-password=<password> \
+     --docker-email=<email> \
+     -n heart-disease-api
+   ```
 
-To update the Deployment image: kubectl -n heart-disease-api set image deployment/heart-disease-api api=/heart-disease-api:tag
+3. **(Optional) Create model PVC and copy model files, or mount a hostPath:**
+   ```bash
+   kubectl apply -f k8s/model-pvc.yaml
+   ```
+   Then update deployment to mount the PVC (see commented volumeMounts in deployment.yaml)
 
-Notes about probes and model loading:
+4. **Apply manifests:**
+   ```bash
+   kubectl apply -f k8s/
+   ```
 
-startupProbe gives the container a long window (failureThreshold × periodSeconds) while the model loads; adjust these if your model loads faster/slower.
-If you implement a /ready endpoint that returns success only after the model is loaded, change the readinessProbe to use /ready — this prevents serving traffic before the model is available.
-Security & permissions:
+5. **To update the Deployment image:**
+   ```bash
+   kubectl -n heart-disease-api set image deployment/heart-disease-api \
+     api=heart-disease-api:<tag>
+   ```
 
-The Dockerfile creates a non-root user with UID 5678; the Deployment sets runAsUser/runAsGroup to 5678 and fsGroup to 5678 so mounted model files are readable. If your cluster enforces different PodSecurity policies, adapt the securityContext accordingly.
+## Notes About Probes and Model Loading
+
+- **startupProbe** gives the container a long window (failureThreshold × periodSeconds) while the model loads; adjust these if your model loads faster/slower.
+- If you implement a `/ready` endpoint that returns success only after the model is loaded, change the readinessProbe to use `/ready` — this prevents serving traffic before the model is available.
+
+## Security & Permissions
+
+- The Dockerfile creates a non-root user with UID 5678; the Deployment sets `runAsUser`/`runAsGroup` to 5678 and `fsGroup` to 5678 so mounted model files are readable.
+- If your cluster enforces different Pod Security Standards, adjust the `securityContext` accordingly.
