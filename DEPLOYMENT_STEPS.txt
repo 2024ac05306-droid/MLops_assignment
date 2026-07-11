@@ -1,0 +1,118 @@
+========================================
+MLOPS ASSIGNMENT - DEPLOYMENT STEPS
+========================================
+
+TASK 1: Train Models ✅
+======================
+Models trained: Logistic Regression and Random Forest
+Best model saved to: models/best_pipeline.pkl
+MLflow tracking enabled for experiment tracking
+
+To train locally (requires deps installed):
+  python src/preprocess_data.py
+  python src/model_train.py
+
+Reports generated:
+  outputs/reports/model_selection_report.txt
+  outputs/reports/model_metrics_comparison.png
+
+
+TASK 2: Build Docker Image ✅
+==============================
+Docker image built successfully: mlops-model-api:latest
+Image size: 513 MB
+
+Commands:
+  docker build -t mlops-model-api:latest .
+  docker images mlops-model-api
+
+Tested locally:
+  docker run -p 8001:8000 -v "C:\Hirdal\WS_MLops\models:/app/models" mlops-model-api:latest
+  
+Health check: ✅
+  curl http://localhost:8001/health
+  Response: {"status":"ok","model_path":"models/best_pipeline.pkl"}
+
+Prediction test: ✅
+  curl -X POST http://localhost:8001/predict -H "Content-Type: application/json" -d @samples/predict_sample.json
+  Response: {"prediction":0,"confidence":0.576061,"probabilities":{"0":0.576061,"1":0.423939},"model_path":"models/best_pipeline.pkl"}
+
+
+TASK 3: Deploy to Kubernetes
+=============================
+
+PREREQUISITES:
+  - Enable Kubernetes in Docker Desktop (Settings > Kubernetes > Enable Kubernetes)
+  - OR use Minikube: minikube start
+  - Verify: kubectl get nodes
+
+STEP 1: Create namespace and deploy
+  kubectl apply -k k8s/
+
+STEP 2: Verify deployment
+  kubectl get all -n mlops-assignment
+  kubectl get pods -n mlops-assignment
+  kubectl get service heart-disease-api-service -n mlops-assignment
+
+STEP 3: Wait for pod to be Running and Ready
+  kubectl wait --for=condition=Ready pod -l app=heart-disease-api -n mlops-assignment --timeout=300s
+
+STEP 4: Access the API
+  
+  Docker Desktop Kubernetes (LoadBalancer on localhost):
+    Health endpoint:
+      curl http://localhost/health
+    
+    Prediction endpoint:
+      curl -X POST http://localhost/predict \
+        -H "Content-Type: application/json" \
+        -d @samples/predict_sample.json
+  
+  Minikube (use tunnel or service URL):
+    minikube tunnel
+    
+    Then use:
+      SERVICE_IP=$(kubectl get service heart-disease-api-service -n mlops-assignment -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+      curl http://$SERVICE_IP/health
+
+STEP 5: View logs
+  kubectl logs -f deployment/heart-disease-api -n mlops-assignment
+
+STEP 6: Clean up
+  kubectl delete -k k8s/
+
+
+SCREENSHOTS FOR SUBMISSION
+==========================
+1. Docker image built:
+   docker images mlops-model-api
+
+2. Kubernetes deployment and pod:
+   kubectl get all -n mlops-assignment
+
+3. LoadBalancer service:
+   kubectl get service heart-disease-api-service -n mlops-assignment
+
+4. Health endpoint response:
+   curl http://localhost/health
+
+5. Prediction endpoint response:
+   curl -X POST http://localhost/predict -H "Content-Type: application/json" -d @samples/predict_sample.json
+
+
+MODEL INFORMATION
+=================
+Endpoint: /predict
+Method: POST
+Input schema: HeartDiseaseInput (13 features)
+Output schema: PredictionResponse
+
+Sample input (samples/predict_sample.json):
+  {"age": 63, "sex": 1, "cp": 1, "trestbps": 145, "chol": 233, "fbs": 1, "restecg": 2, "thalach": 150, "exang": 0, "oldpeak": 2.3, "slope": 3, "ca": 0, "thal": 6}
+
+Sample output:
+  {"prediction": 0, "confidence": 0.576061, "probabilities": {"0": 0.576061, "1": 0.423939}, "model_path": "models/best_pipeline.pkl"}
+
+Health check: /health
+Metrics: /metrics
+API docs: /docs

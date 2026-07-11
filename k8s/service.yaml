@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: heart-disease-api-service
-  namespace: heart-disease-api
+  namespace: mlops-assignment
   labels:
     app: heart-disease-api
 spec:
