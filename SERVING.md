@@ -8,23 +8,43 @@ This project serves the trained heart disease model with FastAPI.
 docker build -t mlops-model-api:latest .
 ```
 
-## Run the container
+
+## Run the container (recommended: mount models directory)
+
+If you have a trained model at ./models/best_pipeline.pkl, mount the models
+folder into the container so the server can find it at runtime:
 
 ```bash
-docker run --rm -p 8000:8000 mlops-model-api:latest
+docker run --rm -p 8000:8000 -v "$(pwd)/models:/app/models" -v "$(pwd)/logs:/app/logs" \
+  -e MODEL_PATH=models/best_pipeline.pkl mlops-model-api:latest
 ```
 
-The API will be available at:
+If you prefer to bake the model into the image, copy it into the `models/`
+folder before building the image.
 
-```text
-http://localhost:8000
+## Run the full stack with compose (serving + prometheus + grafana)
+
+```bash
+docker compose -f compose.yaml up --build
 ```
+
+Service URLs when running the compose stack:
+- API: http://localhost:8000
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/admin)
+
 
 ## Health check
+
+The container exposes a health endpoint `/health`. The endpoint will return
+HTTP 200 only after the model has been successfully loaded. This enables
+orchestrators (Docker, Kubernetes) to detect readiness correctly.
 
 ```bash
 curl http://localhost:8000/health
 ```
+
+If the model is missing the endpoint returns HTTP 503 with details.
 
 ## Sample prediction
 

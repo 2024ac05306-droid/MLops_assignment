@@ -4,7 +4,7 @@ import os
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import joblib
 import pandas as pd
@@ -74,6 +74,28 @@ app = FastAPI(
     version="1.0.0",
     description="Serves the trained heart disease classification pipeline.",
 )
+
+# Runtime model readiness tracking
+MODEL_LOADED: bool = False
+MODEL_LOAD_ERROR: Optional[str] = None
+
+
+@app.on_event("startup")
+def startup_load_model():
+    """Attempt to preload the model at application startup.
+
+    This reduces latency on the first prediction request and allows the
+    /health endpoint to reflect readiness.
+    """
+    global MODEL_LOADED, MODEL_LOAD_ERROR
+    try:
+        load_serving_model()
+        MODEL_LOADED = True
+        logger.info("Model loaded successfully on startup: %s", MODEL_PATH)
+    except Exception as exc:  # keep broad exception handling so app still starts
+        MODEL_LOADED = False
+        MODEL_LOAD_ERROR = str(exc)
+        logger.exception("Failed to load model at startup: %s", MODEL_PATH)
 
 
 @app.middleware("http")
@@ -152,7 +174,18 @@ def load_serving_model():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "model_path": MODEL_PATH}
+    """Health endpoint.
+
+    Returns 200 only when the model has been loaded successfully. If the model
+    is not loaded the endpoint returns HTTP 503 so orchestrators treat the
+    container as unhealthy / not ready.
+    """
+    if MODEL_LOADED:
+        return {"status": "ok", "model_path": MODEL_PATH}
+
+    # Not loaded yet — provide error details and an appropriate status code.
+    detail = MODEL_LOAD_ERROR or f"Model not loaded yet. Expected at {MODEL_PATH}"
+    raise HTTPException(status_code=503, detail=detail)
 
 
 @app.get("/metrics")
