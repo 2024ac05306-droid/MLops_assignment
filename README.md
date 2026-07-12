@@ -7,9 +7,38 @@ This repository is  created for Mlops assignment.
 2. CI/CD pipelines and automation
 3. Containerization and deployment
 4. Experiment tracking
-5. Cloud deployment and monitoring
-6. Production-ready MLOps best practices
+5. Data versioning and reproducibility (DVC)
+6. Cloud deployment and monitoring
+7. Production-ready MLOps best practices
 
+
+## Quick Start with DVC
+
+### Initialize DVC (First Time)
+
+```bash
+make dvc-init
+make install
+```
+
+### Run the Complete ML Pipeline
+
+```bash
+make dvc-repro
+```
+
+This runs all stages in order:
+1. **Preprocess** — Raw data → Processed data
+2. **Train** — Processed data → Model artifacts
+3. **Evaluate** — Model evaluation and metrics
+
+### View Pipeline Structure
+
+```bash
+make dvc-dag
+```
+
+For detailed setup, see [DVC_SETUP.md](DVC_SETUP.md).
 
 ## Model Containerization
 
@@ -34,6 +63,7 @@ Installs dependencies from requirements.txt
 Runs as non-root user (appuser)
 Exposes port 8000
 Includes health check on /health
+Integrated with DVC for artifact management
 
 ✅ Sample input ready — samples/predict_sample.json contains valid test data matching the schema exactly.
 
@@ -147,6 +177,7 @@ Notes and best practices:
 - Keep image layers small (clean apt caches, avoid unnecessary files).
 - If your model file is large, consider mounting it as a volume or fetching it at startup from object storage (S3/GCS).
 - Add health and readiness endpoints to the FastAPI app for orchestration checks (e.g., `/health`, `/ready`).
+- Use DVC to version and manage large model artifacts.
 
 ## Deployment
 
@@ -168,6 +199,7 @@ Have your CI pipeline build and push images to a registry (Docker Hub, GHCR, ECR
 
 - Build image
 - Run tests
+- Run DVC pipeline
 - Tag and push image
 - Deploy (update k8s manifests or trigger rollout)
 
@@ -175,8 +207,11 @@ Example GitHub Actions outline:
 - Checkout code
 - Set up Python
 - Install dependencies and run tests
+- Run DVC pipeline (`dvc repro`)
 - Build and push Docker image using `docker/build-push-action`
 - Deploy to Kubernetes using `kubectl` or Helm
+
+See `.github/workflows/dvc-pipeline.yaml` for a complete example.
 
 3) Production: Kubernetes (recommended for production)
 
@@ -200,6 +235,7 @@ Production recommendations:
 - Store secrets in Kubernetes Secrets and configuration in ConfigMaps.
 - Use an Ingress controller with TLS and, if needed, a service mesh for traffic management.
 - Centralize logs (ELK, Grafana Loki) and metrics (Prometheus) with alerting.
+- Pull DVC-tracked model artifacts during container initialization or deployment.
 
 4) Serverless / PaaS options
 
@@ -211,6 +247,18 @@ Production recommendations:
 - Consider canary releases or blue/green deployments using service meshes or traffic-splitting tools.
 - GitOps (ArgoCD / Flux) can be used to keep cluster state declarative.
 
+## Data Versioning with DVC
+
+DVC (Data Version Control) tracks large datasets and model artifacts:
+
+- **Track data:** `dvc add data/raw data/processed`
+- **Track models:** `dvc add models/`
+- **Define pipelines:** Edit `dvc.yaml` with data/model dependencies
+- **Run reproducible workflows:** `dvc repro`
+- **Collaborate:** Push/pull artifacts from remote storage (S3, GCS, Azure, etc.)
+
+For detailed guidance, see [DVC_SETUP.md](DVC_SETUP.md).
+
 ## Observability & Production-readiness Checklist
 
 - Logging: structured JSON logs are written to `logs/api_requests.log`; consider shipping to a log aggregator
@@ -218,5 +266,29 @@ Production recommendations:
 - Tracing: (optional) add OpenTelemetry to trace requests through the stack
 - Health checks: implement `/live` and `/ready` endpoints
 - Security: ensure images are scanned, run containers as non-root, and store secrets securely
-- Backups: ensure model artifacts and important stateful data are versioned and backed up
+- Backups: ensure model artifacts and important stateful data are versioned and backed up (using DVC)
+- Data versioning: use DVC to track datasets and model lineage
+- Reproducibility: use DVC pipelines to ensure experiments are reproducible
+
+## Available Make Commands
+
+```bash
+make help              # Show all available commands
+make install           # Install dependencies
+make lint              # Run Ruff linter
+make test              # Run pytest tests
+make preprocess        # Run data preprocessing
+make train             # Run model training
+make serve             # Start FastAPI server
+make docker-build      # Build Docker image
+make docker-run        # Run container
+make k8s-deploy        # Deploy to Kubernetes
+make docker-compose-up # Start full stack
+make dvc-init          # Initialize DVC
+make dvc-repro         # Run DVC pipeline
+make dvc-dag           # Show pipeline DAG
+make dvc-push          # Push artifacts to remote
+make dvc-pull          # Pull artifacts from remote
+make clean             # Clean build artifacts
+```
 
