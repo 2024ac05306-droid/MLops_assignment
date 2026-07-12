@@ -23,5 +23,12 @@
 **/obj
 **/secrets.dev.yaml
 **/values.dev.yaml
+**/.dvc/
+**/data/
+**/logs/
+**/models/
+**/*.csv
+**/*.pkl
+**/*.h5
 LICENSE
 README.md
