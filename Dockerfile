@@ -4,12 +4,13 @@ FROM python:3.11-slim AS builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install build dependencies
+# Install build dependencies (including git for DVC)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
     python3-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install Python dependencies to a virtual environment
@@ -25,11 +26,13 @@ EXPOSE 8000
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH"
+    PATH="/opt/venv/bin:$PATH" \
+    MODEL_PATH=/app/models/model.pkl
 
-# Install only runtime dependencies
+# Install only runtime dependencies (including git for DVC)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
@@ -42,6 +45,10 @@ WORKDIR /app
 COPY --chown=appuser:appuser . /app
 
 USER appuser
+
+# Optional: Pull DVC-tracked model artifacts before starting
+# Uncomment if using DVC for model versioning
+# RUN dvc pull models/ 2>/dev/null || echo "DVC artifacts not available or already present"
 
 # Serve the trained model API
 CMD ["uvicorn", "src.serve_api:app", "--host", "0.0.0.0", "--port", "8000"]
