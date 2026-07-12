@@ -1,0 +1,14 @@
+[core]
+    autostage = true
+    analytics = false
+    
+# Uncomment and configure your remote storage
+# ['remote "myremote"']
+#     url = s3://my-bucket/dvc-storage
+# ['remote "myremote"']
+#     url = gs://my-bucket/dvc-storage
+# ['remote "myremote"']
+#     url = /mnt/dvc-storage (for local testing)
+
+[cache]
+    dir = .dvc/cache
