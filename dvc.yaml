@@ -1,0 +1,53 @@
+stages:
+  preprocess:
+    cmd: python src/preprocess_data.py
+    deps:
+      - data/raw
+      - src/preprocess_data.py
+    outs:
+      - data/processed:
+          persist: false
+    logs:
+      - logs/preprocess.log:
+          cache: false
+
+  train:
+    cmd: python src/model_train.py
+    deps:
+      - data/processed
+      - src/model_train.py
+    outs:
+      - models/model.pkl:
+          persist: false
+      - outputs/model_metadata.json:
+          persist: false
+    metrics:
+      - outputs/metrics.json:
+          cache: false
+    logs:
+      - logs/training.log:
+          cache: false
+    plots:
+      - outputs/confusion_matrix.csv:
+          x: actual
+          y: predicted
+          template: confusion
+          cache: false
+
+  evaluate:
+    cmd: python src/evaluate_model.py
+    deps:
+      - models/model.pkl
+      - data/processed
+      - src/evaluate_model.py
+    metrics:
+      - outputs/evaluation_metrics.json:
+          cache: false
+    plots:
+      - outputs/roc_curve.json:
+          cache: false
+      - outputs/precision_recall.csv:
+          cache: false
+    logs:
+      - logs/evaluation.log:
+          cache: false
