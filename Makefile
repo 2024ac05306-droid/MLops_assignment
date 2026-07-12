@@ -1,4 +1,4 @@
-.PHONY: help install lint test preprocess train serve docker-build docker-run k8s-deploy k8s-status k8s-delete docker-compose-up clean
+.PHONY: help install lint test preprocess train serve docker-build docker-run k8s-deploy k8s-status k8s-delete docker-compose-up clean dvc-init dvc-repro dvc-dag dvc-push dvc-pull
 
 help:
 	@echo "MLOps Assignment - Available Commands"
@@ -17,6 +17,14 @@ help:
 	@echo "make docker-compose-up - Start full stack with docker-compose"
 	@echo "make clean            - Clean up generated files"
 	@echo "make logs             - View training logs"
+	@echo ""
+	@echo "DVC Commands"
+	@echo "===================================="
+	@echo "make dvc-init         - Initialize DVC (first time only)"
+	@echo "make dvc-repro        - Run reproducible pipeline with DVC"
+	@echo "make dvc-dag          - Show DVC pipeline DAG"
+	@echo "make dvc-push         - Push artifacts to remote storage"
+	@echo "make dvc-pull         - Pull artifacts from remote storage"
 
 install:
 	pip install -r requirements.txt
@@ -61,6 +69,21 @@ docker-compose-down:
 
 logs:
 	tail -f logs/training.log
+
+dvc-init:
+	dvc init --no-scm
+
+dvc-repro:
+	dvc repro
+
+dvc-dag:
+	dvc dag
+
+dvc-push:
+	dvc push
+
+dvc-pull:
+	dvc pull
 
 clean:
 	rm -rf __pycache__ .pytest_cache .coverage
