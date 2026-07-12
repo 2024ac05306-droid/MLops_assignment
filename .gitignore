@@ -56,4 +56,3 @@ conda-env/
 .dvc/tmp
 .dvc/cache
 .dvc/plots
-*.dvc
