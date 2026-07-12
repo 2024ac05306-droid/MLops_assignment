@@ -51,3 +51,9 @@ htmlcov/
 venv/
 env/
 conda-env/
+
+# DVC
+.dvc/tmp
+.dvc/cache
+.dvc/plots
+*.dvc
